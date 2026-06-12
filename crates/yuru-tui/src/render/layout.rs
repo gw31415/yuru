@@ -1,4 +1,5 @@
 use crossterm::terminal;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::api::TuiLayout;
 use crate::preview::{PreviewGeometry, PreviewRender};
@@ -87,19 +88,27 @@ pub(super) fn scroll_offset(selected: usize, len: usize, rows: usize) -> usize {
 }
 
 pub(super) fn truncate_to_width_with_ellipsis(text: &str, width: usize, ellipsis: &str) -> String {
-    let char_count = text.chars().count();
-    if char_count <= width {
+    let display_width = text.width();
+    if display_width <= width {
         return text.to_string();
     }
     if width == 0 {
         return String::new();
     }
 
-    let ellipsis_width = ellipsis.chars().count().min(width);
-    let mut out: String = text
-        .chars()
-        .take(width.saturating_sub(ellipsis_width))
-        .collect();
-    out.extend(ellipsis.chars().take(ellipsis_width));
+    let ellipsis_width = ellipsis.width().min(width);
+    let mut out = String::new();
+    let mut current_width = 0;
+    for c in text.chars() {
+        let char_width = c.width().unwrap_or(0);
+        if current_width + char_width > width.saturating_sub(ellipsis_width) {
+            break;
+        }
+        out.push(c);
+        current_width += char_width;
+    }
+    if current_width + ellipsis_width <= width {
+        out.extend(ellipsis.chars().take(ellipsis_width));
+    }
     out
 }

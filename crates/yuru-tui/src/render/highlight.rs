@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
 use yuru_core::{match_positions, Candidate, KeyKind, ScoredCandidate, SearchKey};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -46,7 +48,7 @@ pub(crate) fn highlight_segments_for_result(
 
         return highlight_segments(
             &result.display,
-            &(0..result.display.chars().take(width).count()).collect(),
+            &(0..result.display.width()).collect(),
             width,
         );
     }
@@ -141,11 +143,22 @@ fn highlight_segments(
     let mut segments = Vec::new();
     let mut current = String::new();
     let mut current_highlighted = None;
+    let mut current_display_width = 0;
 
-    for (char_index, ch) in text.chars().take(width).enumerate() {
+    for (char_index, ch) in text.chars().enumerate() {
+        if current_display_width >= width {
+            break;
+        }
+
+        let char_width = ch.width().unwrap_or(0);
+        if current_display_width + char_width > width {
+            break;
+        }
+
         let highlighted = highlighted_positions.contains(&char_index);
         if current_highlighted == Some(highlighted) {
             current.push(ch);
+            current_display_width += char_width;
             continue;
         }
 
@@ -156,6 +169,7 @@ fn highlight_segments(
             });
         }
         current.push(ch);
+        current_display_width += char_width;
         current_highlighted = Some(highlighted);
     }
 
@@ -170,11 +184,22 @@ fn highlight_segments(
 }
 
 fn phonetic_fallback_positions(text: &str, width: usize) -> HashSet<usize> {
-    text.chars()
-        .take(width)
-        .enumerate()
-        .filter_map(|(index, ch)| is_visible_phonetic_surface(ch).then_some(index))
-        .collect()
+    let mut positions = HashSet::new();
+    let mut current_display_width = 0;
+    for (index, ch) in text.chars().enumerate() {
+        if current_display_width >= width {
+            break;
+        }
+        let char_width = ch.width().unwrap_or(0);
+        if current_display_width + char_width > width {
+            break;
+        }
+        if is_visible_phonetic_surface(ch) {
+            positions.insert(index);
+        }
+        current_display_width += char_width;
+    }
+    positions
 }
 
 fn is_visible_phonetic_surface(ch: char) -> bool {
