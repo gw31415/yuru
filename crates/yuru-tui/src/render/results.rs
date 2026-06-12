@@ -9,6 +9,7 @@ use crossterm::{
     },
     terminal::{Clear, ClearType},
 };
+use unicode_width::UnicodeWidthStr;
 use yuru_core::{Candidate, ScoredCandidate};
 
 use crate::api::{TuiLayout, TuiStyle};
@@ -146,7 +147,7 @@ pub(crate) fn render(
         } else {
             queue!(output, Print(" "), Print(mark))?;
         }
-        let printed = render_highlighted_result(
+        render_highlighted_result(
             output,
             state.query(),
             result,
@@ -155,10 +156,6 @@ pub(crate) fn render(
             selected,
         )?;
         if selected_row_background {
-            let padding = result_width.saturating_sub(printed);
-            if padding > 0 {
-                queue!(output, Print(" ".repeat(padding)))?;
-            }
             queue!(output, ResetColor)?;
         }
         queue!(output, SetAttribute(Attribute::Reset))?;
@@ -222,7 +219,7 @@ fn render_highlighted_result(
                 SetAttribute(Attribute::Bold)
             )?;
         }
-        printed += segment.text.chars().count();
+        printed += segment.text.width();
         queue!(output, Print(segment.text))?;
         if segment.highlighted {
             if selected && context.highlight_line {
